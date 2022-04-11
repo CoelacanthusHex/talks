@@ -1,0 +1,265 @@
+\documentclass[UTF-8]{ctexbeamer}
+\usetheme{Berkeley}
+\usecolortheme{seahorse}
+
+\usepackage{minted}
+\usepackage{tikz}
+\usetikzlibrary{arrows,positioning,calc,decorations.pathreplacing,fit}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{textcomp}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{unicode-math}
+\usepackage{graphicx}
+\usepackage[normalem]{ulem}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{chronosys}
+
+\setminted{
+	tabsize=4,
+	frame=lines
+}
+\hypersetup{
+	colorlinks,
+	linkcolor=blue,
+	urlcolor=blue,
+	anchorcolor=blue,
+	citecolor=blue,
+	breaklinks=true,
+	hyperfootnotes=true,
+	unicode
+}
+
+\usepackage{FiraMono}
+
+%\setmonofont{Fira Mono}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setCJKmainfont{Noto Serif CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans CJK SC}
+
+\title{让编程语言爱上 RISC-V}
+\subtitle{以 Crystal 为例}
+\author{Coelacanthus}
+\institute{PLCT Arch RISC-V 小队}
+\date{2022年4月6日}
+\logo{
+	\includegraphics[scale=0.75]{asserts/Archlinux-icon.pdf}
+}
+
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{enumerate items}[default]
+\beamertemplatenavigationsymbolsempty
+\setbeamerfont{footnote}{size=\tiny}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\section{基本介绍}
+\subsection{移植工作的主要组成部分}
+\begin{frame}
+	\frametitle{移植工作的主要组成部分}
+
+	\begin{description}
+		\item[编译器的支持] 主要包括代码生成、一些常量，以及一些架构相关的特殊语法
+		\pause
+		\item[标准库的支持] 主要需要处理的是系统调用和内嵌汇编，以及某些在 RISC-V 上不再满足的假设
+		\pause
+		\item[一些周围设施] 比如某些被广泛使用的语言库（可选）
+	\end{description}
+
+\end{frame}
+
+\subsection{两种主要的情况及其移植方式}
+\begin{frame}
+	\frametitle{两种主要的情况}
+
+	\begin{itemize}
+		\item 使用 LLVM 作为代码生成后端 \\
+			很多现代新设计的语言采用了这种方案
+		\item 使用自己编写的代码生成后端 \\
+			\pause
+			比较困难，主要问题在于：
+			\begin{itemize}
+				\item 你需要自行编写代码生成后端
+				\item 直到你完成编译器后端的移植，你都无法通过测试编译来排查需要移植的地方
+			\end{itemize}
+	\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{一些共性的问题}
+
+	\begin{itemize}
+		\item 这些语言大多没有移植文档，我们需要自行确定有什么东西需要移植
+		\item 大多数语言的编译器和标准库都有测试，他们是帮助我们测试移植正确性的有效工具
+		\item 如果有集成测试，这将是我们确定代码哪部分出现问题的有效工具
+	\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{使用 LLVM 作为代码生成后端}
+
+	可以分为以下几个步骤
+
+	\begin{enumerate}
+		\item 首先添加相关常量和代码路径，使之能产生 RISC-V 代码
+		\item 然后，尝试编译，观察编译器和标准库在编译时有什么问题和缺少的东西
+		\item 尝试移植缺少的部分和补充修改错误的假设
+		\item 继续尝试第二步，如此迭代，直到没有编译问题
+		\item 尝试运行单元测试和集成测试，修复问题，直到测试完全通过
+	\end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{使用 LLVM 作为代码生成后端}
+
+	一些其他注意事项：
+
+	\begin{itemize}
+		\item 写代码时记得关注支持的 LLVM 版本，不要写出不支持的语法
+		\item LLVM 从 9 开始才支持 RISC-V，如果版本不满足记得做适当处理
+	\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{使用自己编写的代码生成后端}
+
+	与 LLVM 基本相同，不同的是第一步变为添加 RISC-V 代码生成后端
+
+\end{frame}
+
+\section{举例：我是如何移植 Crystal 的}
+
+\subsection{寻找需要的信息}
+\begin{frame}
+	\frametitle{寻找需要的信息}
+
+	\begin{itemize}
+		\item 编译器代码在哪里
+		\item 标准库代码在哪里
+		\item 编译器依赖标准库的哪些部分
+		\item 集成测试和单元测试在哪里
+	\end{itemize}
+
+\end{frame}
+
+\subsection{编译器部分}
+\begin{frame}[fragile]
+	\frametitle{编译器部分}
+
+	%代码链接：\href{https://github.com/crystal-lang/crystal/tree/master/src/compiler}{src/compiler@crystal-lang/crystal} \\
+
+	首先我们根据报错信息，我们找到\href{https://github.com/crystal-lang/crystal/blob/master/src/compiler/crystal/codegen/target.cr#L154}{这段代码}，可见我们需要在这里添加 \verb|riscv64| 的分支，并且实现从 \verb|LLVM.init_riscv64| 开始的一系列调用链。
+
+	\begin{minted}[fontsize=\tiny]{crystal}
+def to_target_machine(cpu = "", features = "", release = false,
+  code_model = LLVM::CodeModel::Default) : LLVM::TargetMachine
+  case @architecture
+  when "i386", "x86_64"
+    LLVM.init_x86
+  when "aarch64"
+    LLVM.init_aarch64
+  when "arm"
+    LLVM.init_arm
+  else
+    raise Target::Error.new("Unsupported architecture for target triple: #{self}")
+  end
+
+...
+end
+	\end{minted}
+
+	这部分比较简单，主要是照猫画虎地添加 RISC-V branch。
+
+\end{frame}
+
+\subsection{标准库部分}
+\begin{frame}[fragile]
+	\frametitle{标准库部分}
+
+	%代码链接：\href{https://github.com/crystal-lang/crystal/tree/master/src}{crystal-lang/crystal} \\
+
+	然后我们可以进入标准库部分，参考报错信息，和架构名关键词，我们可以知道至少有以下几个部分需要处理
+
+	\begin{description}
+		\item[ABI] \href{https://github.com/crystal-lang/crystal/tree/master/src/llvm/abi}{src/llvm/abi@crystal-lang/crystal}
+		\item[syscall] \href{https://github.com/crystal-lang/crystal/tree/master/src/syscall}{src/syscall@crystal-lang/crystal}
+		\item[fiber] \href{https://github.com/crystal-lang/crystal/tree/master/src/fiber}{src/fiber@crystal-lang/crystal}
+		\item[libc] \href{https://github.com/crystal-lang/crystal/tree/master/src/lib_c}{src/lib\_c@crystal-lang/crystal}
+		\item[ELF] \href{https://github.com/crystal-lang/crystal/blob/master/src/crystal/elf.cr}{src/crystal/elf.cr@crystal-lang/crystal}
+	\end{description}
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{syscall}
+
+	其中，\verb|syscall| 部分最为简单，由于在很多架构上，Linux 使用的系统调用号是一致的\footnote{\url{https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/unistd.h}}\footnote{\url{https://marcin.juszkiewicz.com.pl/download/tables/syscalls.html}}，比如 AArch64 和 RISC-V，因此我们只需要参照系统调用传参表修改寄存器和系统调用指令即可。该表可于 \verb|syscall(2)|\footnote{\url{https://man7.org/linux/man-pages/man2/syscall.2.html}} 找到
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{ABI}
+
+	ABI 主要参考 Calling Conventions\footnote{\url{https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-cc.adoc}} 和 ELF\footnote{\url{https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-elf.adoc}}，可以额外参考 \href{https://www.bilibili.com/video/BV123411v7rN}{张四维- RISC-V psABI 简介及其在LLVM中的实现}。\\
+
+	注意这里实现了一部分判断函数和 enum，这部分可以参考 Rust 的实现\footnote{\url{https://github.com/rust-lang/rust/blob/master/compiler/rustc_target/src/abi/call/riscv.rs}}和 LLVM 的实现\footnote{\url{https://github.com/llvm/llvm-project/blob/8e780252a7284be45cf1ba224cabd884847e8e92/clang/lib/CodeGen/TargetInfo.cpp\#L9311-L9773}}。
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{libc}
+
+	libc 部分难度较低，但是工作量比较大，主要任务是筛除掉 RISC-V 上没有支持的功能。\\
+	基本就是对着 glibc 改就好。\\
+	注意其中的 signal 部分，以常见架构为基础修改较好，其他架构可能编号并不一致。具体区别可以参考 \verb|signal(7)|\footnote{\url{https://man7.org/linux/man-pages/man7/signal.7.html}}
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{fiber}
+
+	fiber 部分主要难度取决于你对 RISC-V 的寄存器结构和上下文切换的了解，主要组成部分是一个 \verb|makecontext| 和一个 \verb|swapcontext| 函数。可以参考上下文切换的资料和 \href{https://www.bilibili.com/video/BV123411v7rN}{张四维- RISC-V psABI 简介及其在LLVM中的实现}
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{ELF}
+
+	参考 riscv64 上的 \verb|/usr/include/elf.h| 的内容添加相关常量。
+
+\end{frame}
+
+\subsection{周围设施部分}
+\begin{frame}
+	\frametitle{周围设施部分}
+
+	写完代码之后，不要忘记添加 CI 和文档。
+
+\end{frame}
+
+\subsection{小插曲}
+\begin{frame}
+	\frametitle{小插曲}
+
+	在我写完这篇文章之后不久，我发现有人给 Crystal PR 了 WASM 支持，所以通过别人的 PR 寻找线索也是个好主意。
+
+\end{frame}
+
+\begin{frame}
+	\begin{center}
+		\huge{谢谢大家}
+	\end{center}
+
+\end{frame}
+
+\end{document}

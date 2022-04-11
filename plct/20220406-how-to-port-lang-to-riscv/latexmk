@@ -1,0 +1,8 @@
+$pdf_mode = 5;
+
+$pdflatex = "pdflatex -interaction=nonstopmode -synctex=1 %O %S";
+$xelatex = "xelatex -shell-escape -file-line-error -halt-on-error -interaction=nonstopmode -no-pdf -synctex=1 %O %S";
+$xdvipdfmx = "xdvipdfmx -E -o %D %O %S";
+
+# vim: set ft=perl:
+# kate: space-indent on; indent-width 4; syntax perl;

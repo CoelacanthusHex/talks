@@ -1,0 +1,259 @@
+\documentclass[UTF-8]{ctexbeamer}
+\usetheme{Berkeley}
+\usecolortheme{seahorse}
+
+\usepackage{minted}
+\usepackage{tikz}
+\usetikzlibrary{arrows,positioning,calc,decorations.pathreplacing,fit}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{textcomp}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{unicode-math}
+\usepackage{graphicx}
+\usepackage[normalem]{ulem}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{chronosys}
+
+\setminted{
+	tabsize=4,
+	frame=lines
+}
+\hypersetup{
+	colorlinks,
+	linkcolor=blue,
+	urlcolor=blue,
+	anchorcolor=blue,
+	citecolor=blue,
+	breaklinks=true,
+	hyperfootnotes=true,
+	unicode
+}
+
+\newcommand{\emptyline}{\vspace{\baselineskip}}
+
+\usepackage{FiraMono}
+
+%\setmonofont{Fira Mono}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setCJKmainfont{Noto Serif CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans CJK SC}
+
+\title{如何给火狐贡献代码}
+%\subtitle{}
+\author{Coelacanthus}
+\institute{PLCT Arch RISC-V 小队}
+\date{2022年4月6日}
+\logo{
+	\includegraphics[scale=0.75]{asserts/Archlinux-icon.pdf}
+}
+
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{enumerate items}[default]
+\beamertemplatenavigationsymbolsempty
+\setbeamerfont{footnote}{size=\tiny}
+
+%\urlstyle{tt}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\section{什么是火狐}
+\subsection{工具链}
+\begin{frame}
+	\frametitle{Firefox 的维护工具链}
+
+	\begin{itemize}%[<+->]
+		\item 使用 C++ 和 Rust 开发
+		\item 使用自有构建工具 Mach（由 Python 编写）（事实上具体的编译步骤会被托管到 Autotools Cargo 等具体的构建工具）
+		\item 使用 Mercurial 作为 VCS（版本控制系统）
+		\item 使用 Phabricator 作为代码审阅工具（Facebook 开发，被 Mozilla、GNUPG、KDE 和 LLVM 等大型项目广泛使用）
+		\item 使用 Bugzilla 作为 bug 跟踪系统（Bugzilla 亦是 Mozilla 开发）
+	\end{itemize}
+
+\end{frame}
+
+\subsection{维护架构}
+\begin{frame}
+	\frametitle{Firefox 的发行周期}
+
+	\begin{itemize}
+		\item 每四周发行一个版本
+		\item Beta 和 Developer Edition 比 Release 快一个版本，Nightly 比 Beta 快一个版本
+		\item 特殊挑选的 ESR 版本
+	\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{Firefox 的代码周期}
+
+	\begin{itemize}
+		\item 合并的代码会被加入 autoland 分支
+		\item 高权限维护者不定期（平均每天几次）将 autoland 分支上的修改合并到 mozilla-central
+		\item mozilla-central 是主要的开发分支，Nightly 是其在某个时刻的构建
+		\item 每四周，在 mozilla-central 更新版本号之前，mozilla-beta 从 mozilla-central 分支出来，这就是 Beta/Developer 版本的维护分支
+		\item 再过四周，在 mozilla-beta 从 mozilla-central 拉取代码前，mozilla-release 从他分支出来，这就是 Release 版本的维护分支
+	\end{itemize}
+
+\end{frame}
+
+\section{怎样贡献火狐}
+
+\subsection{去哪里寻找火狐的代码}
+\begin{frame}
+	\frametitle{去哪里寻找火狐的代码}
+
+	Firefox 的代码库使用 Mercurial 托管在 \url{https://hg.mozilla.org/mozilla-central}，\\
+	但是同时，我们也有一个 Git 代码库可用 \url{https://github.com/mozilla/gecko-dev}，\\
+	虽然这个代码库是只读的，但是无关紧要，我们并不需要直接推送代码。
+
+\end{frame}
+
+\subsection{去哪里寻找和提出问题}
+\begin{frame}[fragile]
+	\frametitle{去哪里寻找和提出问题}
+
+	Bug Tracker: \url{https://bugzilla.mozilla.org}
+	\pause
+	\emptyline
+	点开 \href{https://bugzilla.mozilla.org/describecomponents.cgi}{Components} 可以看到 Firefox 的架构有数个部分，我们一般比较关心的是 Firefox、Core，其次是 DevTools 和 WebExtensions。注意 Firefox 的 Android 版并不在此追踪，他们使用 GitHub\footnote{\url{https://github.com/mozilla-mobile/fenix}}。
+
+\end{frame}
+
+\subsection{准备工具}
+\begin{frame}[fragile]
+	\frametitle{准备工具}
+
+	当然，首先肯定需要 Python、C++ 编译器和 Rust 编译器，这是我们编译 Rust 所需要的基本工具。\\
+	\pause
+	然后，编译 Firefox 需要一些额外的工具，我并不会在这里为你列出需要的依赖，因为太多了。但是你可以通过以下方式获取：\\
+	\pause
+	\begin{description}
+		\item[Arch] \href{https://github.com/archlinux/svntogit-packages/blob/packages/firefox/trunk/PKGBUILD#L13}{PKGBUILD of Firefox}
+		\item[Fedora/RHEL] \verb|dnf builddep firefox|
+		\item[Debian/Ubuntu] \verb|apt build-dep firefox|
+	\end{description}
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{准备工具}
+	此外你需要安装一个名为 \verb|moz-phab| 的工具，可以通过 \verb|pip3 install MozPhab| 或者稍后通过 \verb|./mach install-moz-phab| 安装。\\
+	或者你可以使用 arcanist 工具。关于这工具的使用方法，可以参考 \href{https://www.bilibili.com/video/BV14m4y1D7ZM}{刘阳 - 提交patch到LLVM上游} 和 \href{https://moz-conduit.readthedocs.io/en/latest/arcanist-user.html}{Arcanist User Guide} \\
+	再或者你可以直接使用网页上传 patch，不推荐。\sout{不过有的用户，比如之前 LLVM 小队的 ksyx 就特别喜欢手动传 patch。}
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{准备账号}
+
+	首先，你需要有一个 BMO 账号，也就是 bugzilla.mozilla.org 的账号。\\
+	其次，这个账号必须启用了二步验证。\\
+	然后，你需要打开 \url{https://phabricator.services.mozilla.com/}，完成注册。
+
+\end{frame}
+
+\subsection{修改与提交代码}
+\subsubsection{获取代码库}
+\begin{frame}[fragile]
+	\frametitle{获取代码库 - Git}
+	如果使用 Git 代码库，你需要安装一个名为 git-cinnabar 的辅助工具，安装方式在这里。 \url{https://github.com/glandium/git-cinnabar} \\
+
+	然后，\verb|git clone https://github.com/mozilla/gecko-dev|。\\
+
+	注意这个 Git 仓库有数个G，请保证你的网络环境稳定且高速率。
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{获取代码库 - Mercurial}
+
+	\verb|hg clone https://hg.mozilla.org/mozilla-central|
+
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{获取代码库 - Official way}
+
+	\begin{minted}[fontsize=\Tiny]{console}
+$ curl -O https://hg.mozilla.org/mozilla-central/raw-file/default/python/mozboot/bin/bootstrap.py
+$ python3 bootstrap.py
+	\end{minted}
+	如果使用 Git，如下，并且安装 git-cinnabar
+	\begin{minted}[fontsize=\Tiny]{console}
+$ curl -O https://hg.mozilla.org/mozilla-central/raw-file/default/python/mozboot/bin/bootstrap.py
+$ python3 bootstrap.py --vcs=git
+	\end{minted}
+	这种情况下仓库在 mozilla-unified
+
+\end{frame}
+
+\subsubsection{修改与测试}
+\begin{frame}[fragile]
+	\frametitle{修改与测试}
+	做你想做的修改，然后执行
+	\begin{minted}{console}
+$ ./mach build
+$ ./mach test some/path
+$ ./mach lint some/path
+$ ./mach static-analysis
+	\end{minted}
+	然后你需要使用 \verb|./mach run| 运行火狐，检查功能是否正常工作。
+\end{frame}
+
+\subsubsection{提交代码}
+\begin{frame}[fragile]
+	\frametitle{提交代码}
+
+	首先使用 \verb|moz-phab install-certificate| 完成账号配置，\\
+	然后，一般情况下一个提交必须有对应的 Bug tracker id，所以你需要在 BMO 上创建一个跟踪器。\\
+	使用 \verb|hg commit| 或者 \verb|git commit| 创建提交，格式如下\\
+	\begin{minted}[fontsize=\tiny]{text}
+Bug xxxx - Short description of your change. r=reviewer,#review-group
+
+Optionally, a longer description of the change.
+	\end{minted}
+	Review Group 在这里可以找到：\url{https://firefox-source-docs.mozilla.org/contributing/reviews.html} \\
+	你也可以查找版本历史寻找 Reviewer。\\
+	然后使用 \verb|moz-phab| 提交代码。
+
+\end{frame}
+
+\subsection{请求审阅和更新提交}
+\begin{frame}[fragile]
+	\frametitle{审阅}
+	然后，moz-phab 会返回一个链接，他用于追踪这次更改。\\
+	你可以在网页上完成绝大多数操作。\\
+	然后，等待 Reviewer 的到来。\\
+	如果遇到有要求修改的地方，在本地修改，\verb|git commit --amend|，随后运行 \verb|moz-phab| 即可。
+\end{frame}
+
+\subsection{代码落地与后续跟踪}
+
+\begin{frame}[fragile]
+	\frametitle{后续跟踪}
+	不要取消 Bugzilla 的 CC，有可能会有 regression 出现。
+\end{frame}
+
+\begin{frame}
+	\frametitle{一些补充}
+	
+	\begin{itemize}
+		\item try 如何下载编译产物 \href{https://bugzilla.mozilla.org/show\_bug.cgi?id=1756400}{演示链接}
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}
+	\begin{center}
+		\huge{谢谢大家}
+	\end{center}
+
+\end{frame}
+
+\end{document}

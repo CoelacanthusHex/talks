@@ -1,0 +1,213 @@
+\documentclass[UTF-8]{ctexbeamer}
+\usetheme{Berkeley}
+\usecolortheme{seahorse}
+
+\usepackage{minted}
+\usepackage{tikz}
+\usetikzlibrary{arrows,positioning,calc,decorations.pathreplacing,fit}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{textcomp}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{unicode-math}
+\usepackage{graphicx}
+\usepackage[normalem]{ulem}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{chronosys}
+
+\setminted{
+	tabsize=4,
+	frame=lines
+}
+\hypersetup{
+	colorlinks,
+	linkcolor=blue,
+	urlcolor=blue,
+	anchorcolor=blue,
+	citecolor=blue,
+	breaklinks=true,
+	hyperfootnotes=true,
+	unicode
+}
+
+\newcommand{\emptyline}{\vspace{\baselineskip}}
+
+\usepackage{FiraMono}
+
+%\setmonofont{Fira Mono}
+\setmainfont{Noto Serif}
+\setsansfont{Noto Sans}
+\setCJKmainfont{Noto Serif CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans CJK SC}
+
+\title{我与 Firefox 的故事}
+%\subtitle{}
+\author{Coelacanthus}
+%\institute{PLCT Arch RISC-V 小队}
+\date{2022年4月21日}
+%\logo{
+%	\includegraphics[scale=0.75]{assets/Archlinux-icon.pdf}
+%}
+
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{enumerate items}[default]
+\beamertemplatenavigationsymbolsempty
+\setbeamerfont{footnote}{size=\tiny}
+
+%\urlstyle{tt}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\section{什么是火狐}
+\begin{frame}
+
+	你可以看 \url{https://www.bilibili.com/video/BV1fY41177mf}
+
+\end{frame}
+
+\section{我与火狐的故事}
+\begin{frame}[fragile]
+	\frametitle{问题的开始}
+	
+	\begin{itemize}[<+->]
+		\item 一个需求：我想要寻找一个合适的等宽字体
+		\item 后来，我找到了 Iosevka，但是，我不喜欢他的 19 种预设字形
+		\item 然后，我发现 Iosevka 支持可以编译时控制使用哪个字形
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{问题的开始}
+
+	\begin{itemize}[<+->]
+		\item 然后，我发现 Iosevka 支持通过 OpenType Font Feature\footnote{\url{https://en.wikipedia.org/wiki/List_of_typographic_features}} 控制使用预设的某个字形
+		\item 紧接着经过一番查找文档，我发现 fontconfig\footnote{\url{https://www.freedesktop.org/wiki/Software/fontconfig/}} 可以控制字体的 OpenType Font Feature
+		\item 然后我开始尝试编写 fontconfig 配置
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{问题的开始}
+	
+	最初的配置长这个样子：
+	\begin{minted}[fontsize=\tiny]{xml}
+<?xml version='1.0'?>
+<!DOCTYPE fontconfig SYSTEM 'fonts.dtd'>
+<fontconfig>
+  <match target="pattern">
+    <test name="family" compare="eq" ignore-blanks="true">
+      <string>Iosevka</string>
+    </test>
+    <edit name="fontfeatures" mode="append">
+      <string>ss10 on</string> <!-- using SS10 variant shape -->
+      <string>cv49 1</string>  <!-- straight y -->
+      <string>cv83 2</string>  <!-- underline, not too high, not too low -->
+     </edit>
+  </match>
+</fontconfig>
+	\end{minted}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{问题的开始}
+	
+	\begin{itemize}[<+->]
+		\item 我使用 pango-view 进行测试，发现他工作的很好……
+		\item 直到……
+		\item 直到我开始使用 Qt 编写的 Konsole 和 自己进行字体选择的 Firefox
+		\item 他不工作！
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}
+	\frametitle{What happened?}
+	
+	Qt: \href{https://bugreports.qt.io/browse/QTBUG-78645}{Support OpenType font features through fontconfig} opened at 2019-09-20 \\
+	\emptyline \\
+	Firefox: No bug report，所以我开了一个\\ \href{https://bugzilla.mozilla.org/show_bug.cgi?id=1744765}{Add font features config from user's fontconfig}
+	
+\end{frame}
+
+\begin{frame}
+	\frametitle{What happened?}
+	
+	但是等了\sout{很久}三个月也没人去做，于是我决定自己动手
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{我是怎么做的}
+	
+	\begin{itemize}[<+->]
+		\item 首先把火狐的代码拖下来
+		\item 然后去找这部分代码在什么地方：\verb|gfx/thebes/|
+		\item 然后理清调用链条（火狐大量使用继承找起来还是有点麻烦的，推荐配合好用的代码跳转工具）
+		\item 最后寻找插入代码的位置
+		\item 改完，编译，测试，提交，收工
+		\item 这就完了？
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{不，还没结束！}
+	
+	\begin{itemize}[<+->]
+		\item 提交之后，review 机器人迅速指出了第一个问题：把 unsiged int 转换成 signed int 的行为是实现定义的
+		\item 然后，jfkthame 指出了第二个和第三个问题：我判断条件写反了，并且我没有必要创建一个新数组，我可以复用原本为 CSS 的 font-feature-settings\footnote{\url{https://developer.mozilla.org/en-US/docs/Web/CSS/font-feature-settings}} 设计的 mFeatureSettings 数组
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{不，还没结束！}
+	
+	\begin{itemize}[<+->]
+		\item 重新修改并提交之后，jfkthame 又指出了两个问题：Firefox 代码风格不使用 \verb|this->| 和 C-style cast，直接使用初始化列表
+		\item 然后，他又指出，对网络字体附加用户本地配置可能不是预期的行为，也许应当只对本地字体应用设置
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{另一个故事}
+	
+	\begin{itemize}[<+->]
+		\item 有一天，我浏览\href{https://asaba.sakuragawa.moe/2021/07/%e4%bf%ae%e5%be%a9-fedora-gnu-linux-%e7%b3%bb%e7%b5%b1%e4%b8%8b%e7%9a%84%e9%8d%b5%e7%9b%a4%e5%8a%9f%e8%83%bd%e5%8d%80%ef%bc%88f-%e5%8d%80%ef%bc%89%e6%8c%89%e9%8d%b5/}{一个 zh-HK 的网页}，突然发现代码块使用的字体不是等宽的
+		\item 经过仔细排查，发现仅在我的 locale 为 zh-CN 且页面语言为 zh-HK 和 zh-TW 时发生
+		\item 于是我去开了个 Bug report: \url{https://bugzilla.mozilla.org/show_bug.cgi?id=1756400}
+		\item 后来发现，当我在 fontconfig 里重复 prepend 一个字体的时候，会触发这个问题
+		\item 但是我的重复 prepend 只针对 zh-CN locale 啊？
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{另一个故事}
+	
+	\begin{itemize}[<+->]
+		\item 然后，发现了一个问题
+		\item 火狐查询字体的时候，传的是系统 locale，而不是页面 locale！
+		\item 维护者表示尽管关键问题不在这里，但是他仍然应该被修复
+		\item 所以火狐现在变成了一个错误 prepend 检测器，比如 \href{https://bugzilla.mozilla.org/show_bug.cgi?id=1763175}{Firefox font regression in Arch Linux (KDE plasma 5.24.4)}
+	\end{itemize}
+	
+\end{frame}
+
+\begin{frame}
+	\begin{center}
+		\huge{谢谢大家}
+	\end{center}
+
+\end{frame}
+
+\end{document}

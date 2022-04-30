@@ -104,7 +104,7 @@
 	
 \end{frame}
 
-\section{X11 的基本架构}
+\subsection{X11 的基本架构}
 \begin{frame}[fragile]
 	\frametitle{X11 的基本架构}
 	
@@ -115,23 +115,23 @@
 		xlib [label="xlib/XCB"];
 		gtk [label="GTK"];
 		qt [label="Qt"];
-		wm [label=<Windows<br />Manager>];
+		wm [label=<Window<br />Manager>];
 		{rank=same; xlib; qt; gtk; wm;}
 		pdf [label="Internal PDF Format"];
-		qtinter [label="Internal Format"];
-		gtkxpm [label="XPM"];
-		qtxpm [label="XPM"];
+		qt_internal [label="Internal Format"];
+		gtk_xpm [label="XPM"];
+		qt_xpm [label="XPM"];
 		xserver [label="Xserver", height=4];
 		screen [label="Screen", height=2];
 		keyboard [label="Keyboard", height=1];
 		mouse [label="Mouse", height=1];
 		{rank=same; screen; keyboard; mouse;}
 		gtk -> pdf [label="Cairo"];
-		pdf -> gtkxpm;
-		gtkxpm -> xserver [label="xlib/xcb"];
-		qt -> qtinter [label="QPaint"];
-		qtinter -> qtxpm;
-		qtxpm -> xserver [label="xlib/xcb"];
+		pdf -> gtk_xpm;
+		gtk_xpm -> xserver [label="xlib/xcb"];
+		qt -> qt_internal [label="QPaint"];
+		qt_internal -> qt_xpm;
+		qt_xpm -> xserver [label="xlib/xcb"];
 		xlib -> xserver [label="xlib/xcb"];
 		wm -> xserver;
 		xserver -> wm;
@@ -171,20 +171,20 @@
 		gtk [label="GTK"];
 		qt [label="Qt"];
 		compositor [label="Compositor", height=2];
-		wm [label=<Windows<br />Manager>];
+		wm [label=<Window<br />Manager>];
 		{rank=same; xlib; qt; gtk; compositor; wm;}
 		pdf [label="Internal PDF Format"];
-		qtinter [label="Internal Format"];
-		gtkxpm [label="XPM"];
-		qtxpm [label="XPM"];
+		qt_internal [label="Internal Format"];
+		gtk_xpm [label="XPM"];
+		qt_xpm [label="XPM"];
 		xserver [label="Xserver", height=5];
 		screen [label="Screen", height=8];
 		gtk -> pdf [label="Cairo"];
-		pdf -> gtkxpm;
-		gtkxpm -> xserver [label="xlib/xcb"];
-		qt -> qtinter [label="QPaint"];
-		qtinter -> qtxpm;
-		qtxpm -> xserver [label="xlib/xcb"];
+		pdf -> gtk_xpm;
+		gtk_xpm -> xserver [label="xlib/xcb"];
+		qt -> qt_internal [label="QPaint"];
+		qt_internal -> qt_xpm;
+		qt_xpm -> xserver [label="xlib/xcb"];
 		xlib -> xserver [label="xlib/xcb"];
 		wm -> xserver;
 		xserver -> wm;
@@ -238,7 +238,7 @@
 \section{Wayland 的架构}
 \begin{frame}[fragile]
 	\frametitle{Wayland 的架构}
-		\digraph[scale=0.4]{wayland}{
+	\digraph[scale=0.4]{wayland}{
 		rankdir=LR;
 		splines=ortho;
 		node [shape=box];
@@ -274,10 +274,59 @@
 	\begin{itemize}
 		\item 首先是老生常谈的，有许多应用尚不支持 Native Wayland，而且他们中的很多也不可能支持 Wayland 了
 		\item 在 X11 下 Window 有一个 Class，可以用于识别窗口，由此可以实现很多有用的功能，比如窗口自动归类和对不同应用使用不同的输入法（Rime）和输入法状态（Fcitx5）
-		\item 因为 Wayland 的输入法协议设计缺陷，输入法不能获得准确的光标位置来绘制候选框
-		\item 同样的，因为 Wayland 输入法有多个版本，如果应用，输入法和 Wayland 混成器支持的协议没有交集，会直接无法使用输入法\footnote{\url{https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/39\#implementation-matrix}}
+		\item 因为 Wayland 的协议设计缺陷，输入法不能获得准确的光标位置来绘制候选框，同样的，不能移动候选框位置
+		\item 同样的，因为 Wayland 输入法协议有多个版本，如果应用，输入法和 Wayland 混成器支持的协议没有交集，会直接无法使用输入法\footnote{\url{https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/39\#implementation-matrix}}
+		\item 同时，Wayland 输入法协议要求输入法进程被 Compositor 启动
 	\end{itemize}
 	
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{Wayland 下的输入法架构}
+	\digraph[scale=0.3]{waylandinput}{
+		rankdir=LR;
+		splines=ortho;
+		node [shape=box];
+		qt_im_module [label=<Qt application<br/>using Qt IM Module>];
+		gtk_im_module [label=<GTK application<br/>using GTK IM Module>];
+		v2 [label=<Application<br/>using zwp_text_input_v2 protocol>];
+		v3 [label=<Application<br/>using zwp_text_input_v3 protocol<br/>e.g. foot>];
+		x11 [label="X11 application"];
+		xwayland [label="XWayland"];
+		dbus [label="DBUS Daemon", height=2];
+		compositor [label=<Wayland<br/>Compositor>, height=2];
+		im [label="Input Method", height=6.5];
+		qt_im_module -> dbus [dir="both"];
+		gtk_im_module -> dbus [dir="both"];
+		dbus -> im [dir="both"];
+		v2 -> compositor [dir="both", label="zwp_text_input_v2"];
+		v3 -> compositor [dir="both", label="zwp_text_input_v3"];
+		compositor -> im [dir="both", label=<zwp_input_method_v1<br/>or<br/>zwp_input_method_v2>];
+		x11 -> xwayland [dir="both", label="XIM"];
+		xwayland -> im [dir="both", label="XIM"];
+		{ rank=same; v2; v3; x11; qt_im_module; gtk_im_module;}
+		{ rank=same; compositor; dbus; xwayland;}
+	}
+\end{frame}
+
+\begin{frame}[fragile]
+	\frametitle{害群之马}
+	\digraph[scale=0.4]{gnomeinput}{
+		rankdir=LR;
+		splines=ortho;
+		node [shape=box];
+		v2 [label=<Application<br/>using zwp_text_input_v2 protocol>];
+		v3 [label=<Application<br/>using zwp_text_input_v3 protocol<br/>e.g. foot>];
+		dbus [label="DBUS Daemon", height=2];
+		compositor [label=<Mutter<br/>Wayland Compositor>, height=2];
+		im [label="Input Method", height=2];
+		v2 -> compositor [dir="both", style="dashed", label="zwp_text_input_v2"];
+		v3 -> compositor [dir="both", label="zwp_text_input_v3"];
+		compositor -> dbus [dir="both", label="IBus DBus protocol"];
+		dbus -> im [dir="both", label="IBus DBus protocol"];
+		{ rank=same; compositor; dbus;}
+		{ rank=same; v2; v3; im;}
+	}
 \end{frame}
 
 \section{讨论时间}

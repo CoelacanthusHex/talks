@@ -17,6 +17,8 @@
 \usepackage{tabularx}
 \usepackage{multirow}
 \usepackage{chronosys}
+% Fucking hack for LaTeX 16 open files limit
+\usepackage{morewrites}
 
 \setminted{
 	tabsize=4,
@@ -47,11 +49,11 @@
 \title{X11 与 Wayland}
 \subtitle{Linux GUI 的曲折发展史}
 \author{Coelacanthus}
-%\institute{PLCT Arch RISC-V 小队}
-\date{2022年4月21日}
-%\logo{
-%	\includegraphics[scale=0.75]{assets/Archlinux-icon.pdf}
-%}
+\institute{PLCT Arch RISC-V 小队}
+\date{2022年5月18日}
+\logo{
+	\includegraphics[scale=0.75]{assets/Archlinux-icon.pdf}
+}
 
 \setbeamertemplate{itemize items}[circle]
 \setbeamertemplate{enumerate items}[default]
@@ -339,12 +341,6 @@
 	}
 \end{frame}
 
-\section{讨论时间}
-\begin{frame}
-	\begin{center}
-		\huge{讨论时间}
-	\end{center}
-\end{frame}
 \begin{frame}
 	\begin{center}
 		\huge{谢谢大家}
